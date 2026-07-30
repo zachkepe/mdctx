@@ -32,11 +32,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_USERNAME/mdctx.git"
+    "url": "git+https://github.com/zachkepe/mdctx.git"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/mdctx",
+  "homepage": "https://github.com/zachkepe/mdctx",
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/mdctx/issues"
+    "url": "https://github.com/zachkepe/mdctx/issues"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
