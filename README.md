@@ -34,6 +34,13 @@ that's what this is for.
 npm install -g mdctx
 ```
 
+Or via Homebrew (not yet in homebrew-core, so tap this repo first):
+
+```bash
+brew tap zachkepe/mdctx
+brew install mdctx
+```
+
 ## CLI usage
 
 ```bash
