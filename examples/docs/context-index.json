@@ -1,7 +1,7 @@
 {
   "version": 1,
   "root": ".",
-  "generatedAt": "2026-07-30T01:58:46.935Z",
+  "generatedAt": "2026-07-30T02:29:22.642Z",
   "entries": {
     "auth-flow.md": {
       "path": "auth-flow.md",
@@ -11,15 +11,10 @@
         "access token expires",
         "party identity provider",
         "session refresh work",
-        "access token",
-        "refresh token",
-        "authentication flow",
-        "document describes",
-        "users authenticate",
-        "client receives"
+        "access token"
       ],
       "hash": "sha1:f600d68ce2325afc9655b4024adc9a132bd826e6",
-      "updatedAt": "2026-07-30T01:58:46.933Z"
+      "updatedAt": "2026-07-30T02:29:22.636Z"
     },
     "deployment.md": {
       "path": "deployment.md",
@@ -29,15 +24,10 @@
         "production environment pulls",
         "container image built",
         "latest tagged image",
-        "environment variables",
-        "project deploys",
-        "deploy time",
-        "image",
-        "deployment",
-        "ci"
+        "environment variables"
       ],
       "hash": "sha1:63a99e119ed70a81623e22d55161c39edc03ea23",
-      "updatedAt": "2026-07-30T01:58:46.935Z"
+      "updatedAt": "2026-07-30T02:29:22.642Z"
     }
   }
 }

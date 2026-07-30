@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tokenize, extractKeywords, extractTitle } from "../src/core/keywords.js";
+import { tokenize, extractKeywords, extractTitle, autoMaxKeywords } from "../src/core/keywords.js";
 
 test("tokenize lowercases and strips punctuation", () => {
   assert.deepEqual(tokenize("Hello, World!"), ["hello", "world"]);
@@ -61,6 +61,42 @@ test("extractKeywords is deterministic across repeated calls", () => {
   const first = extractKeywords(text, 5);
   const second = extractKeywords(text, 5);
   assert.deepEqual(first, second);
+});
+
+test("autoMaxKeywords clamps to the minimum for very short documents", () => {
+  assert.equal(autoMaxKeywords(0), 5);
+  assert.equal(autoMaxKeywords(20), 5);
+});
+
+test("autoMaxKeywords clamps to the maximum for very long documents", () => {
+  assert.equal(autoMaxKeywords(5000), 25);
+});
+
+test("autoMaxKeywords scales roughly linearly in the middle of the range", () => {
+  // ~30 words per keyword, so 600 words should land near 20.
+  assert.equal(autoMaxKeywords(600), 20);
+});
+
+test("extractKeywords auto-sizes the keyword budget when maxKeywords is omitted", () => {
+  const shortText = "Deployment notes about container image release.";
+  const shortKeywords = extractKeywords(shortText);
+  assert.ok(shortKeywords.length <= autoMaxKeywords(tokenize(shortText).length));
+
+  const longText = Array.from(
+    { length: 40 },
+    (_, i) => `Section ${i} discusses topic number ${i} in detail with unique terminology ${i}.`
+  ).join(" ");
+  const longKeywords = extractKeywords(longText);
+  assert.ok(longKeywords.length > shortKeywords.length);
+});
+
+test("extractKeywords with an explicit maxKeywords ignores document length entirely", () => {
+  const longText = Array.from(
+    { length: 40 },
+    (_, i) => `Section ${i} discusses topic number ${i} in detail with unique terminology ${i}.`
+  ).join(" ");
+  const keywords = extractKeywords(longText, 2);
+  assert.equal(keywords.length, 2);
 });
 
 test("extractTitle reads title from YAML frontmatter", () => {

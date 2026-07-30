@@ -55,13 +55,32 @@ function splitIntoPhrases(text: string): string[][] {
   return phrases;
 }
 
+const MIN_AUTO_KEYWORDS = 5;
+const MAX_AUTO_KEYWORDS = 25;
+const WORDS_PER_KEYWORD = 30;
+
+/**
+ * Pick a keyword budget sized to the document instead of a flat constant.
+ * A 150-word doc and a 5,000-word doc both losing relevant terms to the
+ * same fixed cutoff (or a short doc padded with low-signal keywords to
+ * hit it) is the wrong tradeoff — this scales with word count instead,
+ * clamped so tiny files don't get zero and huge files don't get hundreds.
+ */
+export function autoMaxKeywords(wordCount: number): number {
+  return Math.min(MAX_AUTO_KEYWORDS, Math.max(MIN_AUTO_KEYWORDS, Math.round(wordCount / WORDS_PER_KEYWORD)));
+}
+
 /**
  * Score each candidate phrase by RAKE's degree/frequency heuristic and
- * return the top `maxKeywords` phrases, highest score first.
+ * return the top `maxKeywords` phrases, highest score first. If
+ * `maxKeywords` is omitted, the budget is auto-sized to the document's
+ * word count via `autoMaxKeywords`.
  */
-export function extractKeywords(text: string, maxKeywords = 10): string[] {
+export function extractKeywords(text: string, maxKeywords?: number): string[] {
   const phrases = splitIntoPhrases(text);
   if (phrases.length === 0) return [];
+
+  const budget = maxKeywords ?? autoMaxKeywords(tokenize(text).length);
 
   const freq = new Map<string, number>();
   const degree = new Map<string, number>();
@@ -91,7 +110,7 @@ export function extractKeywords(text: string, maxKeywords = 10): string[] {
 
   return [...phraseScores.entries()]
     .sort((a, b) => b[1] - a[1])
-    .slice(0, maxKeywords)
+    .slice(0, budget)
     .map(([phrase]) => phrase);
 }
 

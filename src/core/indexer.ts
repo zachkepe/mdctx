@@ -52,7 +52,10 @@ async function walkMarkdownFiles(dir: string, ignore: string[]): Promise<string[
 export async function buildIndex(options: BuildOptions): Promise<ContextIndex> {
   const root = path.resolve(options.root);
   const indexPath = options.indexPath ?? path.join(root, DEFAULT_INDEX_FILENAME);
-  const maxKeywords = options.maxKeywords ?? 10;
+  // undefined here means "auto-size per file" (see extractKeywords), not
+  // "use some indexer-level default" — leave it unset unless the caller
+  // pinned a fixed budget.
+  const maxKeywords = options.maxKeywords;
   const ignore = options.ignore ?? DEFAULT_IGNORE;
 
   // Stored relative to the index file's own directory so the committed

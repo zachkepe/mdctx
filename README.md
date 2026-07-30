@@ -107,7 +107,17 @@ manually or in whatever pipeline already touches your docs.
    the last run.
 2. For new/changed files, it extracts a title (from frontmatter or the
    first heading) and a set of keywords using a RAKE-style scoring
-   algorithm — no LLM call, no network request.
+   algorithm — no LLM call, no network request. The number of keywords
+   per file is auto-sized to that file's word count (roughly one keyword
+   per 30 words, clamped to 5-25) rather than a flat count for every
+   file, so a two-paragraph doc doesn't get padded with low-signal
+   phrases and a long doc doesn't lose relevant terms to an arbitrarily
+   small cutoff. Pass `-k <n>` to `mdctx build` to pin a fixed count for
+   every file instead. Because of the incremental hash cache, this only
+   affects files that are new or whose content changed on that run — an
+   already-indexed file keeps its existing keyword count until it's
+   re-processed. Delete `context-index.json` and rebuild if you want to
+   re-score everything under the new sizing immediately.
 3. Everything is written to `context-index.json` — one JSON object per
    file, human-readable and git-diffable. A rebuild that finds no content
    changes writes back the exact same bytes (the `root` path is stored

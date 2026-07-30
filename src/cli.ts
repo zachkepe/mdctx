@@ -24,8 +24,11 @@ program
   .description("Index all markdown files under a directory (incremental)")
   .argument("[dir]", "Directory to index", ".")
   .option("-o, --output <path>", "Path to write the index JSON")
-  .option("-k, --max-keywords <n>", "Max keywords per file", "10")
-  .action(async (dir: string, opts: { output?: string; maxKeywords: string }) => {
+  .option(
+    "-k, --max-keywords <n>",
+    "Max keywords per file. Omit to auto-size per file based on its word count (5-25)"
+  )
+  .action(async (dir: string, opts: { output?: string; maxKeywords?: string }) => {
     const root = path.resolve(dir);
     const indexPath = opts.output
       ? path.resolve(opts.output)
@@ -33,7 +36,7 @@ program
     const index = await buildIndex({
       root,
       indexPath,
-      maxKeywords: Number(opts.maxKeywords),
+      maxKeywords: opts.maxKeywords !== undefined ? Number(opts.maxKeywords) : undefined,
     });
     console.log(`Indexed ${Object.keys(index.entries).length} file(s) -> ${indexPath}`);
   });

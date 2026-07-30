@@ -215,6 +215,28 @@ test("buildIndex respects maxKeywords option", async () => {
   }
 });
 
+test("buildIndex auto-sizes keywords per file when maxKeywords is omitted", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "short.md"), "# Short\nA brief note about deployment.");
+    const longBody = Array.from(
+      { length: 40 },
+      (_, i) => `Section ${i} discusses topic number ${i} in detail with unique terminology ${i}.`
+    ).join(" ");
+    await fs.writeFile(path.join(dir, "long.md"), `# Long\n${longBody}`);
+    const indexPath = path.join(dir, "context-index.json");
+
+    const index = await buildIndex({ root: dir, indexPath });
+    const shortCount = index.entries["short.md"].keywords.length;
+    const longCount = index.entries["long.md"].keywords.length;
+
+    assert.ok(shortCount >= 1 && shortCount <= 25);
+    assert.ok(longCount > shortCount);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("loadIndex auto-heals by building from scratch when the index file is missing", async () => {
   const dir = await makeTempDir();
   try {
