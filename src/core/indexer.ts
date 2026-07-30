@@ -46,14 +46,14 @@ async function walkMarkdownFiles(dir: string, ignore: string[]): Promise<string[
 
 /**
  * Build (or incrementally update) the context index. Files whose content
- * hash is unchanged since the last run are reused as-is — keywords are
+ * hash is unchanged since the last run are reused as-is, keywords are
  * only recomputed for new or modified files.
  */
 export async function buildIndex(options: BuildOptions): Promise<ContextIndex> {
   const root = path.resolve(options.root);
   const indexPath = options.indexPath ?? path.join(root, DEFAULT_INDEX_FILENAME);
   // undefined here means "auto-size per file" (see extractKeywords), not
-  // "use some indexer-level default" — leave it unset unless the caller
+  // "use some indexer-level default". Leave it unset unless the caller
   // pinned a fixed budget.
   const maxKeywords = options.maxKeywords;
   const ignore = options.ignore ?? DEFAULT_IGNORE;

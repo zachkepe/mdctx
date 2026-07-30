@@ -1,7 +1,7 @@
 {
   "name": "mdctx",
   "version": "0.1.0",
-  "description": "Zero-ML-dependency keyword index for markdown context files. Fast, git-diffable context retrieval for LLM workspaces — usable as a CLI or an MCP server.",
+  "description": "Zero-ML-dependency keyword index for markdown context files. Fast, git-diffable context retrieval for LLM workspaces, usable as a CLI or an MCP server.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

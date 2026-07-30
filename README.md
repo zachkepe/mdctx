@@ -5,7 +5,7 @@
 
 A zero-ML-dependency keyword index for markdown context files. Built for
 large workspaces where dumping every doc into an LLM's context window
-wastes tokens — `mdctx` indexes your markdown once, then answers "which
+wastes tokens. `mdctx` indexes your markdown once, then answers "which
 files are relevant to X" in milliseconds, from a flat JSON file you can
 commit and diff like code.
 
@@ -18,7 +18,7 @@ hybrid keyword+semantic search (qmd, dotmd, foam-notes-mcp, and others).
 - **No SQLite, no vector DB, no embedding model to download.** The index
   is a single flat JSON file you can read, diff, and review in a PR.
 - **Keyword-only by design**, using RAKE-style extraction and BM25
-  ranking — fully deterministic, fully offline, no cost per index update.
+  ranking. Fully deterministic, fully offline, no cost per index update.
 - **Cross-model on purpose.** Ships as both a CLI (usable from any script
   or agent that can shell out) and an MCP server (usable by Claude,
   ChatGPT, Cursor, and anything else that speaks MCP).
@@ -44,7 +44,7 @@ brew install mdctx
 ## CLI usage
 
 ```bash
-# Index every .md/.mdx file under a directory (incremental — only
+# Index every .md/.mdx file under a directory (incremental, only
 # changed files are re-processed)
 mdctx build ./docs
 
@@ -87,17 +87,17 @@ mdctx init ./docs
 This wires up everything needed so you never have to remember to run
 `mdctx build` by hand:
 
-- **`.mdctx.json`** — records which directory holds your docs and where
+- **`.mdctx.json`**: records which directory holds your docs and where
   the index lives, so the hooks and CI job below don't need arguments.
-- **A pre-commit hook** — rebuilds the index and stages it before every
+- **A pre-commit hook**: rebuilds the index and stages it before every
   commit, so `context-index.json` always reflects what you're about to
   commit. If nothing changed, the rebuild is a no-op and nothing gets
   added to the commit.
-- **post-merge / post-checkout hooks** — rebuild the index after a pull
+- **post-merge / post-checkout hooks**: rebuild the index after a pull
   or a branch switch, so local search results match whatever's on disk.
-  These are advisory: if the rebuild fails for any reason they print a
+  These are advisory, if the rebuild fails for any reason they print a
   warning to stderr rather than blocking the merge or checkout.
-- **`.github/workflows/mdctx-index.yml`** — a CI check that rebuilds the
+- **`.github/workflows/mdctx-index.yml`**: a CI check that rebuilds the
   index on every push/PR and fails the build if it doesn't match what's
   committed. This is the backstop for commits made with `--no-verify`,
   from a machine that never ran `mdctx init`, or by a bot.
@@ -117,14 +117,14 @@ manually or in whatever pipeline already touches your docs.
    the last run.
 2. For new/changed files, it extracts a title (from frontmatter or the
    first heading) and a set of keywords using a RAKE-style scoring
-   algorithm — no LLM call, no network request. The number of keywords
+   algorithm. No LLM call, no network request. The number of keywords
    per file is auto-sized to that file's word count (roughly one keyword
    per 30 words, clamped to 5-25) rather than a flat count for every
    file, so a two-paragraph doc doesn't get padded with low-signal
    phrases and a long doc doesn't lose relevant terms to an arbitrarily
    small cutoff. Pass `-k <n>` to `mdctx build` to pin a fixed count for
    every file instead. Because of the incremental hash cache, this only
-   affects files that are new or whose content changed on that run — an
+   affects files that are new or whose content changed on that run. An
    already-indexed file keeps its existing keyword count until it's
    re-processed. Delete `context-index.json` and rebuild if you want to
    re-score everything under the new sizing immediately.
@@ -141,7 +141,7 @@ manually or in whatever pipeline already touches your docs.
    one-word phrase before the boost applies, and a short isolated phrase
    can still lose to a longer unboosted one. Bolding a multi-word span
    doesn't have this problem, only single words do.
-3. Everything is written to `context-index.json` — one JSON object per
+3. Everything is written to `context-index.json`, one JSON object per
    file, human-readable and git-diffable. A rebuild that finds no content
    changes writes back the exact same bytes (the `root` path is stored
    relative to the index file, and the `generatedAt` timestamp only moves
@@ -156,7 +156,7 @@ To check whether keyword-based retrieval actually saves tokens in practice,
 we ran a controlled comparison: two identical research agents given the same
 task against the same real, mid-size production codebase (a security
 software platform with a job queue, worker pool, and container-based task
-execution — roughly 30 markdown docs plus a large multi-service backend).
+execution, roughly 30 markdown docs plus a large multi-service backend).
 Same prompt, same target repo, same task ("research how queuing and
 concurrency work, identify the parallelization control points"). The only
 variable was retrieval method: one agent ran `mdctx search` first and read
@@ -170,16 +170,16 @@ reads, no index.
 | Wall-clock time | ~167s | ~206s | **~19% faster** |
 
 Both agents independently converged on the same core architectural
-findings — the primary concurrency limiter, the split between the two
+findings: the primary concurrency limiter, the split between the two
 container-execution models, and the coupling between worker replica count
-and the concurrency cap — using a fifth fewer tokens and nearly a third
+and the concurrency cap, using a fifth fewer tokens and nearly a third
 fewer tool calls with mdctx. That's the expected result of pointing an
 agent at the handful of files that actually matter instead of letting it
 rediscover the codebase's shape from scratch: less redundant exploration,
 the same answer, faster and cheaper. For deeper audits where exhaustive
 coverage matters more than speed, pair `mdctx search` with a broader
 follow-up pass over the next few ranked results rather than stopping at
-the top hit — the index is there to narrow where you start, not to replace
+the top hit. The index is there to narrow where you start, not to replace
 judgment about how far to go.
 
 ## Development

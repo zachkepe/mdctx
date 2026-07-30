@@ -92,7 +92,7 @@ const WORDS_PER_KEYWORD = 30;
  * Pick a keyword budget sized to the document instead of a flat constant.
  * A 150-word doc and a 5,000-word doc both losing relevant terms to the
  * same fixed cutoff (or a short doc padded with low-signal keywords to
- * hit it) is the wrong tradeoff — this scales with word count instead,
+ * hit it) is the wrong tradeoff. This scales with word count instead,
  * clamped so tiny files don't get zero and huge files don't get hundreds.
  */
 export function autoMaxKeywords(wordCount: number): number {
