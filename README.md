@@ -150,6 +150,38 @@ manually or in whatever pipeline already touches your docs.
 4. `mdctx search` loads that JSON, builds a BM25 index in memory over
    each file's title+keywords, and returns ranked results.
 
+## Benchmark
+
+To check whether keyword-based retrieval actually saves tokens in practice,
+we ran a controlled comparison: two identical research agents given the same
+task against the same real, mid-size production codebase (a security
+software platform with a job queue, worker pool, and container-based task
+execution — roughly 30 markdown docs plus a large multi-service backend).
+Same prompt, same target repo, same task ("research how queuing and
+concurrency work, identify the parallelization control points"). The only
+variable was retrieval method: one agent ran `mdctx search` first and read
+only what it surfaced; the other explored from scratch with grep/find/direct
+reads, no index.
+
+| Metric | mdctx | Baseline | Improvement |
+|---|---|---|---|
+| Tokens used | 68,748 | 86,314 | **20.3% fewer** |
+| Tool calls | 32 | 45 | **28.9% fewer** |
+| Wall-clock time | ~167s | ~206s | **~19% faster** |
+
+Both agents independently converged on the same core architectural
+findings — the primary concurrency limiter, the split between the two
+container-execution models, and the coupling between worker replica count
+and the concurrency cap — using a fifth fewer tokens and nearly a third
+fewer tool calls with mdctx. That's the expected result of pointing an
+agent at the handful of files that actually matter instead of letting it
+rediscover the codebase's shape from scratch: less redundant exploration,
+the same answer, faster and cheaper. For deeper audits where exhaustive
+coverage matters more than speed, pair `mdctx search` with a broader
+follow-up pass over the next few ranked results rather than stopping at
+the top hit — the index is there to narrow where you start, not to replace
+judgment about how far to go.
+
 ## Development
 
 ```bash
