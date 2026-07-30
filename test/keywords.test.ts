@@ -99,6 +99,79 @@ test("extractKeywords with an explicit maxKeywords ignores document length entir
   assert.equal(keywords.length, 2);
 });
 
+test("extractKeywords ranks a phrase higher when its word appears in a heading", () => {
+  const prose =
+    "The application handles user requests through a series of middleware layers. " +
+    "Authentication is verified before any database query executes. Logging captures " +
+    "request duration and response codes for later analysis. Error handling wraps every " +
+    "route handler to prevent unhandled exceptions from crashing the process. Configuration " +
+    "values are loaded from environment variables at startup rather than hardcoded constants.";
+  const target = "A small widget handles retry backoff timing.";
+
+  const withoutHeading = `${prose} ${target}`;
+  const withHeading = `## Widget Retry Logic\n\n${prose} ${target}`;
+
+  const rankWithout = extractKeywords(withoutHeading, 20).findIndex((k) => k.includes("widget"));
+  const rankWith = extractKeywords(withHeading, 20).findIndex((k) => k.includes("widget"));
+
+  assert.notEqual(rankWithout, -1, "widget phrase should be present in the unboosted baseline");
+  assert.notEqual(rankWith, -1, "widget phrase should be present when boosted");
+  assert.ok(
+    rankWith <= rankWithout,
+    `expected the heading to improve or hold widget's rank (was ${rankWithout}, now ${rankWith})`
+  );
+});
+
+test("extractKeywords ranks a phrase higher when it appears as a bold/emphasis span", () => {
+  // Bolding a multi-word span, the common real-world case (e.g. a product
+  // or feature name), not a single word: * and _ are phrase delimiters
+  // (so **word** splitting mid-phrase would otherwise shorten it), but an
+  // emphasized multi-word span stays one phrase and gets boosted intact.
+  const prose =
+    "The application handles user requests through a series of middleware layers. " +
+    "Authentication is verified before any database query executes. Logging captures " +
+    "request duration and response codes for later analysis. Error handling wraps every " +
+    "route handler to prevent unhandled exceptions from crashing the process. Configuration " +
+    "values are loaded from environment variables at startup rather than hardcoded constants.";
+
+  const withoutEmphasis = `${prose} A small gadget handles retry backoff timing.`;
+  const withEmphasis = `${prose} A small gadget handles **retry backoff timing**.`;
+
+  const rankWithout = extractKeywords(withoutEmphasis, 20).findIndex((k) => k.includes("retry backoff"));
+  const rankWith = extractKeywords(withEmphasis, 20).findIndex((k) => k.includes("retry backoff"));
+
+  assert.notEqual(rankWithout, -1);
+  assert.notEqual(rankWith, -1);
+  assert.ok(rankWith <= rankWithout);
+});
+
+test("extractKeywords: a single word wrapped in ** loses its surrounding phrase context", () => {
+  // Documented, not silently swallowed: * is also a phrase delimiter (it
+  // has to be, otherwise raw asterisks would leak into extracted phrase
+  // text), so **word** inside a sentence gets split off as its own
+  // one-word phrase before the boost is applied. The boost still raises
+  // that word's score, but a short isolated phrase can still lose to a
+  // longer unboosted phrase, since phrase score sums across all of a
+  // phrase's words. Bolding a multi-word span (previous test) does not
+  // have this problem.
+  const prose =
+    "The application handles user requests through a series of middleware layers. " +
+    "Authentication is verified before any database query executes. Logging captures " +
+    "request duration and response codes for later analysis.";
+  const withEmphasis = `${prose} A small **gadget** handles retry backoff timing.`;
+
+  const keywords = extractKeywords(withEmphasis, 20);
+  assert.ok(
+    keywords.some((k) => k === "gadget"),
+    `expected a standalone "gadget" phrase, got ${JSON.stringify(keywords)}`
+  );
+});
+
+test("extractKeywords heading boost does not error on a heading with only stopwords", () => {
+  const text = "## The And Or\n\nSome unrelated prose about deployment pipelines and infrastructure.";
+  assert.doesNotThrow(() => extractKeywords(text));
+});
+
 test("extractTitle reads title from YAML frontmatter", () => {
   const md = `---\ntitle: Authentication Flow\n---\n\n# Something Else\n`;
   assert.equal(extractTitle(md, "fallback"), "Authentication Flow");

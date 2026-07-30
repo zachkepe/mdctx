@@ -118,6 +118,19 @@ manually or in whatever pipeline already touches your docs.
    already-indexed file keeps its existing keyword count until it's
    re-processed. Delete `context-index.json` and rebuild if you want to
    re-score everything under the new sizing immediately.
+
+   Words that appear in a markdown heading or a bold/emphasis span get a
+   score multiplier, on the reasoning that an author calling something
+   out explicitly is a stronger relevance signal than RAKE's raw
+   co-occurrence statistics. This matters most for short, specific terms
+   (a product name, a technology) that would otherwise lose to longer,
+   more interconnected prose phrases even in a long document. It's not a
+   complete fix for every case: `*`/`_` are also phrase delimiters (they
+   have to be, so raw asterisks don't leak into extracted phrase text),
+   so a single word wrapped in `**word**` gets isolated as its own
+   one-word phrase before the boost applies, and a short isolated phrase
+   can still lose to a longer unboosted one. Bolding a multi-word span
+   doesn't have this problem, only single words do.
 3. Everything is written to `context-index.json` — one JSON object per
    file, human-readable and git-diffable. A rebuild that finds no content
    changes writes back the exact same bytes (the `root` path is stored

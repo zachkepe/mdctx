@@ -55,6 +55,35 @@ function splitIntoPhrases(text: string): string[][] {
   return phrases;
 }
 
+const HEADING_LINE = /^#{1,6}\s+(.+)$/gm;
+const EMPHASIS_SPAN = /(?:\*\*|__)(.+?)(?:\*\*|__)/g;
+const HEADING_BOOST = 2;
+
+/**
+ * Words the author flagged as important by putting them in a heading or
+ * bold/emphasis span. RAKE's degree/frequency score treats every word as
+ * equally significant based only on how it co-occurs elsewhere in the
+ * document, so a term that's genuinely important but only mentioned once
+ * or twice in short phrases (a product name, a specific technology) can
+ * lose to longer, more interconnected prose phrases even when the author
+ * clearly called it out. This is a cheap, legitimate correction for that:
+ * headings and bold text are an explicit signal from the author, not a
+ * statistical inference, so words there get a fixed score multiplier.
+ */
+function extractBoostedWords(markdown: string): Set<string> {
+  const boosted = new Set<string>();
+  const collect = (text: string) => {
+    for (const word of tokenize(text)) {
+      if (!STOPWORDS.has(word)) boosted.add(word);
+    }
+  };
+
+  for (const match of markdown.matchAll(HEADING_LINE)) collect(match[1]);
+  for (const match of markdown.matchAll(EMPHASIS_SPAN)) collect(match[1]);
+
+  return boosted;
+}
+
 const MIN_AUTO_KEYWORDS = 5;
 const MAX_AUTO_KEYWORDS = 25;
 const WORDS_PER_KEYWORD = 30;
@@ -81,6 +110,7 @@ export function extractKeywords(text: string, maxKeywords?: number): string[] {
   if (phrases.length === 0) return [];
 
   const budget = maxKeywords ?? autoMaxKeywords(tokenize(text).length);
+  const boostedWords = extractBoostedWords(text);
 
   const freq = new Map<string, number>();
   const degree = new Map<string, number>();
@@ -95,7 +125,8 @@ export function extractKeywords(text: string, maxKeywords?: number): string[] {
 
   const wordScore = new Map<string, number>();
   for (const [word, f] of freq) {
-    wordScore.set(word, (degree.get(word) ?? 0) / f);
+    const base = (degree.get(word) ?? 0) / f;
+    wordScore.set(word, boostedWords.has(word) ? base * HEADING_BOOST : base);
   }
 
   const phraseScores = new Map<string, number>();
