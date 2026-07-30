@@ -6,7 +6,21 @@ import type { ContextIndex, IndexEntry } from "./types.js";
 
 const INDEX_VERSION = 1;
 export const DEFAULT_INDEX_FILENAME = "context-index.json";
-const DEFAULT_IGNORE = ["node_modules", ".git", "dist", "build", ".next", ".venv"];
+const DEFAULT_IGNORE = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+  ".venv",
+  "venv",
+  "env",
+  "__pycache__",
+  ".tox",
+  "vendor",
+  "coverage",
+  ".cache",
+];
 
 export interface BuildOptions {
   root: string;

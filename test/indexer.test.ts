@@ -41,6 +41,23 @@ test("buildIndex skips ignored directories like node_modules and .git", async ()
   }
 });
 
+test("buildIndex skips common vendored/virtualenv directories by default", async () => {
+  const dir = await makeTempDir();
+  try {
+    for (const vendored of ["venv", ".venv", "__pycache__", "vendor", "coverage"]) {
+      await fs.mkdir(path.join(dir, vendored));
+      await fs.writeFile(path.join(dir, vendored, "noise.md"), "# Noise");
+    }
+    await fs.writeFile(path.join(dir, "real.md"), "# Real doc");
+    const indexPath = path.join(dir, "context-index.json");
+
+    const index = await buildIndex({ root: dir, indexPath });
+    assert.deepEqual(Object.keys(index.entries), ["real.md"]);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("buildIndex recurses into nested subdirectories", async () => {
   const dir = await makeTempDir();
   try {
