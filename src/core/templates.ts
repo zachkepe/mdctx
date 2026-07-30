@@ -127,14 +127,28 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install mdctx
-        run: npm install -g mdctx
+      - name: Resolve the mdctx CLI
+        # Prefer a local build (this is the mdctx repo itself, or a fork),
+        # then a devDependency install, then fall back to the published
+        # package. Whichever resolves first wins.
+        run: |
+          if [ -f package.json ] && node -e "process.exit(require('./package.json').name === 'mdctx' ? 0 : 1)" 2>/dev/null; then
+            npm ci
+            npm run build
+            echo "MDCTX_CMD=node dist/cli.js" >> "$GITHUB_ENV"
+          elif [ -f package.json ] && node -e "const p=require('./package.json'); process.exit((p.dependencies&&p.dependencies.mdctx)||(p.devDependencies&&p.devDependencies.mdctx)?0:1)" 2>/dev/null; then
+            npm ci
+            echo "MDCTX_CMD=node_modules/.bin/mdctx" >> "$GITHUB_ENV"
+          else
+            npm install -g mdctx
+            echo "MDCTX_CMD=mdctx" >> "$GITHUB_ENV"
+          fi
 
       - name: Rebuild context index
         run: |
           DOCS_DIR=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.mdctx.json','utf8')).docsDir)")
           INDEX_PATH=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.mdctx.json','utf8')).indexPath)")
-          mdctx build "$DOCS_DIR" --output "$INDEX_PATH"
+          $MDCTX_CMD build "$DOCS_DIR" --output "$INDEX_PATH"
 
       - name: Fail if the committed index is stale
         run: |
