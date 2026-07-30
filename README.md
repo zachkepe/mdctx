@@ -62,7 +62,43 @@ Add to your MCP client config (e.g. Claude Desktop's
 ```
 
 This exposes three tools: `search_context`, `refresh_index`, and
-`list_context`.
+`list_context`. `search_context` auto-heals: if the index is missing,
+corrupt, or was written by an older mdctx version, it gets rebuilt
+transparently on the next call rather than erroring out.
+
+## Keeping the index up to date automatically
+
+Run this once per repo:
+
+```bash
+mdctx init ./docs
+```
+
+This wires up everything needed so you never have to remember to run
+`mdctx build` by hand:
+
+- **`.mdctx.json`** — records which directory holds your docs and where
+  the index lives, so the hooks and CI job below don't need arguments.
+- **A pre-commit hook** — rebuilds the index and stages it before every
+  commit, so `context-index.json` always reflects what you're about to
+  commit. If nothing changed, the rebuild is a no-op and nothing gets
+  added to the commit.
+- **post-merge / post-checkout hooks** — rebuild the index after a pull
+  or a branch switch, so local search results match whatever's on disk.
+  These are advisory: if the rebuild fails for any reason they print a
+  warning to stderr rather than blocking the merge or checkout.
+- **`.github/workflows/mdctx-index.yml`** — a CI check that rebuilds the
+  index on every push/PR and fails the build if it doesn't match what's
+  committed. This is the backstop for commits made with `--no-verify`,
+  from a machine that never ran `mdctx init`, or by a bot.
+
+Re-running `mdctx init` is safe. It won't overwrite a hook it didn't
+install unless you pass `--force`, so it won't clobber pre-existing
+hooks from another tool.
+
+If you'd rather not touch git hooks, the CI workflow alone is enough to
+catch staleness; just don't run `mdctx init` and use `mdctx build`
+manually or in whatever pipeline already touches your docs.
 
 ## How it works
 
@@ -73,7 +109,11 @@ This exposes three tools: `search_context`, `refresh_index`, and
    first heading) and a set of keywords using a RAKE-style scoring
    algorithm — no LLM call, no network request.
 3. Everything is written to `context-index.json` — one JSON object per
-   file, human-readable and git-diffable.
+   file, human-readable and git-diffable. A rebuild that finds no content
+   changes writes back the exact same bytes (the `root` path is stored
+   relative to the index file, and the `generatedAt` timestamp only moves
+   when something actually changed), so running `mdctx build` repeatedly
+   never produces spurious diffs.
 4. `mdctx search` loads that JSON, builds a BM25 index in memory over
    each file's title+keywords, and returns ranked results.
 

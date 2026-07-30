@@ -111,6 +111,40 @@ test("buildIndex is incremental: unchanged files keep their original updatedAt/h
   }
 });
 
+test("buildIndex produces a byte-identical file on a no-op rebuild", async () => {
+  const dir = await makeTempDir();
+  try {
+    const filePath = path.join(dir, "a.md");
+    await fs.writeFile(filePath, "# Hello\nsome content here");
+    const indexPath = path.join(dir, "context-index.json");
+
+    await buildIndex({ root: dir, indexPath });
+    const firstBytes = await fs.readFile(indexPath, "utf8");
+
+    await new Promise((r) => setTimeout(r, 5));
+    await buildIndex({ root: dir, indexPath });
+    const secondBytes = await fs.readFile(indexPath, "utf8");
+
+    assert.equal(secondBytes, firstBytes);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("buildIndex stores root as a path relative to the index file, not absolute", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+
+    const index = await buildIndex({ root: dir, indexPath });
+    assert.equal(index.root, ".");
+    assert.ok(!path.isAbsolute(index.root));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("buildIndex re-processes a file after its content changes", async () => {
   const dir = await makeTempDir();
   try {
@@ -176,6 +210,103 @@ test("buildIndex respects maxKeywords option", async () => {
 
     const index = await buildIndex({ root: dir, indexPath, maxKeywords: 2 });
     assert.ok(index.entries["a.md"].keywords.length <= 2);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex auto-heals by building from scratch when the index file is missing", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+
+    // No prior buildIndex call, the file does not exist yet.
+    const loaded = await loadIndex(indexPath, { root: dir });
+    assert.equal(Object.keys(loaded.entries).length, 1);
+
+    const onDisk = await fs.readFile(indexPath, "utf8");
+    assert.equal(JSON.parse(onDisk).entries["a.md"].title, "Hello");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex auto-heals by rebuilding when the index file is corrupt JSON", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+    await fs.writeFile(indexPath, "{ this is not valid json ");
+
+    const loaded = await loadIndex(indexPath, { root: dir });
+    assert.equal(Object.keys(loaded.entries).length, 1);
+    assert.equal(loaded.version, 1);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex auto-heals when the index file has an incompatible version field", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+    await fs.writeFile(
+      indexPath,
+      JSON.stringify({ version: 999, root: dir, generatedAt: new Date().toISOString(), entries: {} })
+    );
+
+    const loaded = await loadIndex(indexPath, { root: dir });
+    assert.equal(loaded.version, 1);
+    assert.equal(Object.keys(loaded.entries).length, 1);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex auto-heals when entries is missing or malformed", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+    await fs.writeFile(indexPath, JSON.stringify({ version: 1, root: dir }));
+
+    const loaded = await loadIndex(indexPath, { root: dir });
+    assert.equal(Object.keys(loaded.entries).length, 1);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex defaults root to the index file's own directory when not given", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+
+    // No root passed, no prior build. Should still self-heal by rebuilding
+    // from the directory the index file itself lives in.
+    const loaded = await loadIndex(indexPath);
+    assert.equal(Object.keys(loaded.entries).length, 1);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadIndex does not rebuild when the index is already well formed", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "a.md"), "# Hello\nsome content");
+    const indexPath = path.join(dir, "context-index.json");
+    await buildIndex({ root: dir, indexPath });
+
+    // Delete the source file. If loadIndex were rebuilding unnecessarily,
+    // the reloaded index would lose this entry.
+    await fs.rm(path.join(dir, "a.md"));
+
+    const loaded = await loadIndex(indexPath, { root: dir });
+    assert.equal(Object.keys(loaded.entries).length, 1);
   } finally {
     await fs.rm(dir, { recursive: true, force: true });
   }

@@ -22,7 +22,9 @@ server.tool(
   },
   async ({ query, limit }: { query: string; limit?: number }) => {
     try {
-      const index = await loadIndex(INDEX_PATH);
+      // loadIndex auto-heals: a missing, corrupt, or version-mismatched
+      // index is rebuilt from ROOT transparently, no manual refresh needed.
+      const index = await loadIndex(INDEX_PATH, { root: ROOT });
       const results = search(index, query, limit ?? 5);
       return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
     } catch (err) {
@@ -30,7 +32,7 @@ server.tool(
         content: [
           {
             type: "text",
-            text: `No index found at ${INDEX_PATH}. Call refresh_index first. (${(err as Error).message})`,
+            text: `Could not load or build an index at ${INDEX_PATH} for root ${ROOT}. (${(err as Error).message})`,
           },
         ],
         isError: true,
@@ -58,7 +60,7 @@ server.tool(
   "List every file currently in the context index with its title and keywords.",
   {},
   async () => {
-    const index = await loadIndex(INDEX_PATH);
+    const index = await loadIndex(INDEX_PATH, { root: ROOT });
     const entries = Object.values(index.entries).map((e) => ({
       path: e.path,
       title: e.title,

@@ -1,8 +1,16 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { promises as fs } from "node:fs";
 import path from "node:path";
 import { buildIndex, loadIndex, DEFAULT_INDEX_FILENAME } from "./core/indexer.js";
 import { search } from "./core/search.js";
+import { findGitRoot, writeConfig, defaultConfig } from "./core/config.js";
+import {
+  preCommitHook,
+  postMergeHook,
+  postCheckoutHook,
+  GITHUB_WORKFLOW,
+} from "./core/templates.js";
 
 const program = new Command();
 
@@ -53,6 +61,81 @@ program
     for (const r of results) {
       console.log(`${r.score.toFixed(2)}  ${r.path}  (${r.title})`);
     }
+  });
+
+const MDCTX_HOOK_MARKER = "Installed by `mdctx init`";
+
+program
+  .command("init")
+  .description(
+    "Wire up automatic index updates: git hooks that rebuild on commit/merge/checkout, " +
+      "plus a GitHub Actions check that fails a PR if the index is stale"
+  )
+  .argument("[dir]", "Directory containing the markdown docs to index", ".")
+  .option("--force", "Overwrite existing hooks even if they weren't installed by mdctx")
+  .action(async (dir: string, opts: { force?: boolean }) => {
+    const gitRoot = await findGitRoot(process.cwd());
+    if (!gitRoot) {
+      console.error("mdctx init must be run inside a git repository (no .git found).");
+      process.exitCode = 1;
+      return;
+    }
+
+    const docsAbsPath = path.resolve(dir);
+    const docsDir = path.relative(gitRoot, docsAbsPath).split(path.sep).join("/") || ".";
+    const indexPath = `${docsDir === "." ? "" : docsDir + "/"}${DEFAULT_INDEX_FILENAME}`;
+
+    await writeConfig(gitRoot, defaultConfig(docsDir, indexPath));
+    console.log(`Wrote ${path.join(gitRoot, ".mdctx.json")}`);
+
+    const hooksDir = path.join(gitRoot, ".git", "hooks");
+    await fs.mkdir(hooksDir, { recursive: true });
+
+    // Pin the exact CLI that ran `init` so hooks work even when mdctx isn't
+    // on PATH in whatever minimal shell git invokes hooks from.
+    const pinnedBinPath = path.resolve(process.argv[1]);
+    const hooks: Record<string, string> = {
+      "pre-commit": preCommitHook(pinnedBinPath),
+      "post-merge": postMergeHook(pinnedBinPath),
+      "post-checkout": postCheckoutHook(pinnedBinPath),
+    };
+
+    for (const [name, contents] of Object.entries(hooks)) {
+      const hookPath = path.join(hooksDir, name);
+      let existing: string | null = null;
+      try {
+        existing = await fs.readFile(hookPath, "utf8");
+      } catch {
+        existing = null;
+      }
+
+      if (existing && !existing.includes(MDCTX_HOOK_MARKER) && !opts.force) {
+        console.warn(
+          `Skipped ${name}: an existing hook is already installed. Re-run with --force to overwrite it.`
+        );
+        continue;
+      }
+
+      await fs.writeFile(hookPath, contents, { mode: 0o755 });
+      await fs.chmod(hookPath, 0o755);
+      console.log(`Wrote ${hookPath}`);
+    }
+
+    const workflowDir = path.join(gitRoot, ".github", "workflows");
+    await fs.mkdir(workflowDir, { recursive: true });
+    const workflowPath = path.join(workflowDir, "mdctx-index.yml");
+    await fs.writeFile(workflowPath, GITHUB_WORKFLOW, "utf8");
+    console.log(`Wrote ${workflowPath}`);
+
+    const index = await buildIndex({
+      root: docsAbsPath,
+      indexPath: path.join(gitRoot, indexPath),
+    });
+    console.log(`Indexed ${Object.keys(index.entries).length} file(s) -> ${indexPath}`);
+    console.log(
+      "\nDone. Commits, merges, and branch checkouts in this repo will now keep " +
+        `${indexPath} up to date automatically.`
+    );
   });
 
 program.parseAsync(process.argv);

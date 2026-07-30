@@ -152,9 +152,50 @@ test("mcp server refresh_index then search_context round-trips a real query", as
   }
 });
 
-test("mcp server search_context reports an error before an index exists", async () => {
+test("mcp server search_context auto-heals by building the index on first use", async () => {
   const dir = await makeTempDir();
   try {
+    await fs.writeFile(path.join(dir, "auth-flow.md"), "# Authentication Flow\naccess token refresh");
+    const client = startServer(dir);
+    try {
+      await client.request("initialize", {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "mdctx-test", version: "0.0.0" },
+      });
+      client.proc.stdin.write(
+        JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized", params: {} }) + "\n"
+      );
+
+      // No refresh_index call first, and no context-index.json on disk yet.
+      const searchResp = await client.request("tools/call", {
+        name: "search_context",
+        arguments: { query: "access token" },
+      });
+      assert.equal(searchResp.result.isError, undefined);
+      const results = JSON.parse(searchResp.result.content[0].text);
+      assert.equal(results.length, 1);
+      assert.equal(results[0].path, "auth-flow.md");
+
+      const indexExists = await fs
+        .access(path.join(dir, "context-index.json"))
+        .then(() => true)
+        .catch(() => false);
+      assert.equal(indexExists, true);
+    } finally {
+      client.close();
+    }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("mcp server search_context auto-heals from a corrupt index file", async () => {
+  const dir = await makeTempDir();
+  try {
+    await fs.writeFile(path.join(dir, "deployment.md"), "# Deployment\ncontainer image release");
+    await fs.writeFile(path.join(dir, "context-index.json"), "{ not valid json ");
+
     const client = startServer(dir);
     try {
       await client.request("initialize", {
@@ -168,9 +209,11 @@ test("mcp server search_context reports an error before an index exists", async 
 
       const searchResp = await client.request("tools/call", {
         name: "search_context",
-        arguments: { query: "anything" },
+        arguments: { query: "deployment" },
       });
-      assert.equal(searchResp.result.isError, true);
+      assert.equal(searchResp.result.isError, undefined);
+      const results = JSON.parse(searchResp.result.content[0].text);
+      assert.equal(results[0].path, "deployment.md");
     } finally {
       client.close();
     }

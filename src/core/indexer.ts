@@ -55,6 +55,11 @@ export async function buildIndex(options: BuildOptions): Promise<ContextIndex> {
   const maxKeywords = options.maxKeywords ?? 10;
   const ignore = options.ignore ?? DEFAULT_IGNORE;
 
+  // Stored relative to the index file's own directory so the committed
+  // JSON is identical across machines and CI runners, not tied to one
+  // filesystem's absolute layout.
+  const storedRoot = path.relative(path.dirname(indexPath), root).split(path.sep).join("/") || ".";
+
   let existing: ContextIndex | null = null;
   try {
     existing = JSON.parse(await fs.readFile(indexPath, "utf8"));
@@ -85,10 +90,19 @@ export async function buildIndex(options: BuildOptions): Promise<ContextIndex> {
     };
   }
 
+  const entriesChanged =
+    !existing ||
+    Object.keys(entries).length !== Object.keys(existing.entries ?? {}).length ||
+    Object.entries(entries).some(([relPath, entry]) => existing?.entries?.[relPath]?.hash !== entry.hash);
+
   const index: ContextIndex = {
     version: INDEX_VERSION,
-    root,
-    generatedAt: new Date().toISOString(),
+    root: storedRoot,
+    // Only bump generatedAt when content actually changed, so a rebuild
+    // over an unchanged doc set produces a byte-identical file. That's
+    // what lets the pre-commit hook and CI staleness check use a plain
+    // file diff instead of a content-aware comparison.
+    generatedAt: entriesChanged ? new Date().toISOString() : existing!.generatedAt,
     entries,
   };
 
@@ -96,6 +110,55 @@ export async function buildIndex(options: BuildOptions): Promise<ContextIndex> {
   return index;
 }
 
-export async function loadIndex(indexPath: string): Promise<ContextIndex> {
-  return JSON.parse(await fs.readFile(indexPath, "utf8"));
+function isWellFormedIndex(value: unknown): value is ContextIndex {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<ContextIndex>;
+  return (
+    candidate.version === INDEX_VERSION &&
+    typeof candidate.root === "string" &&
+    typeof candidate.entries === "object" &&
+    candidate.entries !== null
+  );
+}
+
+export interface LoadIndexOptions {
+  /**
+   * Directory to rebuild from if the index is missing, unparseable, or was
+   * written by an incompatible version. Defaults to the index file's own
+   * directory, which is the common case (index lives alongside the docs
+   * it covers, e.g. `docs/context-index.json` indexing `docs/`).
+   */
+  root?: string;
+  maxKeywords?: number;
+  ignore?: string[];
+}
+
+/**
+ * Load the index, auto-healing by rebuilding from scratch if the file is
+ * missing, corrupt, or was written by an incompatible index version. This
+ * is what keeps `mdctx search` and the MCP server working without a manual
+ * `mdctx build` after someone deletes the file or an old version drifts.
+ */
+export async function loadIndex(
+  indexPath: string,
+  options: LoadIndexOptions = {}
+): Promise<ContextIndex> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await fs.readFile(indexPath, "utf8"));
+  } catch {
+    parsed = null;
+  }
+
+  if (isWellFormedIndex(parsed)) {
+    return parsed;
+  }
+
+  const root = options.root ?? path.dirname(indexPath);
+  return buildIndex({
+    root,
+    indexPath,
+    maxKeywords: options.maxKeywords,
+    ignore: options.ignore,
+  });
 }
