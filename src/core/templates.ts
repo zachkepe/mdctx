@@ -125,7 +125,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Resolve the mdctx CLI
         # Prefer a local build (this is the mdctx repo itself, or a fork),
