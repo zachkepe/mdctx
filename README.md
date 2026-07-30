@@ -1,5 +1,8 @@
 # mdctx
 
+[![npm version](https://img.shields.io/npm/v/mdctx.svg)](https://www.npmjs.com/package/mdctx)
+[![license](https://img.shields.io/npm/l/mdctx.svg)](https://github.com/zachkepe/mdctx/blob/main/LICENSE)
+
 A zero-ML-dependency keyword index for markdown context files. Built for
 large workspaces where dumping every doc into an LLM's context window
 wastes tokens — `mdctx` indexes your markdown once, then answers "which
